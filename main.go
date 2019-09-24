@@ -25,7 +25,7 @@ var (
 func init() {
 
   // Discord Authentication Token
-  Session.Token = os.Getenv("DISCORD_TOKEN")
+  Session.Token = os.Getenv("DISCORD_TEST_BOT")
   if Session.Token == "" {
     // Pointer, flag, default, description
     flag.StringVar(&Session.Token, "t", "", "Discord Authentication Token")
@@ -52,12 +52,12 @@ func main() {
 
   // Verify the Token is valid and grab user information
   Session.State.User, err = Session.User("@me")
-  errCheck("error retrieving account", err)
+  errCheck("error retrieving account", err, true)
 
   botID = Session.State.User.ID
   Session.AddHandler(commandHandler)
   Session.AddHandler(func(discord *discordgo.Session, ready *discordgo.Ready) {
-    err = discord.UpdateStatus(0, "A friendly Overwatch bot!")
+    err = discord.UpdateStatus(0, "A friendly development bot!")
     if err != nil {
       fmt.Println("Error attempting to set my status")
     }
@@ -68,17 +68,19 @@ func main() {
   // Open a websocket connection to Discord
   err = Session.Open()
   defer Session.Close()
-  errCheck("Error opening connection to Discord", err)
+  errCheck("Error opening connection to Discord", err, true)
 
-  commandPrefix = "!"
+  commandPrefix = "&"
 
   <-interrupt
 }
 
-func errCheck(msg string, err error) {
+func errCheck(msg string, err error, die bool) {
   if err != nil {
     fmt.Printf("%s: %+v", msg, err)
-    panic(err)
+    if die {
+      panic(err)
+    }
   }
 }
 
@@ -92,31 +94,25 @@ func commandHandler(discord *discordgo.Session, message *discordgo.MessageCreate
   content := message.Content
 
   switch content {
-    case "!hello":
+    case commandPrefix + "hello":
       discord.ChannelMessageSend(message.ChannelID, "Hello!")
-    case "!gbfc":
-      discord.ChannelMessageSend(
-        message.ChannelID,
-        "Genji Butt Fan Club aka a bunch of try hard casuals")
-    case "!commands":
+    case commandPrefix + "commands":
       discord.ChannelMessageSend(message.ChannelID,
         "__**Command List**__\n" +
-        "`hello: GBSB returns a greeting`\n" +
-        "`gbfc: GBSB tells you about the GBFC Overwatch team`")
-    case "!oof":
+        "`hello: Test Bot returns a greeting`\n" +
+        "`gbfc: Test Bot tells you about the GBFC Overwatch team`")
+    case commandPrefix + "oof":
       f, err := os.Open("commands/pics/oof.png")
       if err != nil {
-        fmt.Println("Error trying to open oof image file")
-        discord.ChannelMessageSend(message.ChannelID,
-          "Something went wrong. Unable to find oof at this time")
+        errCheck("Something went wrong. Unable to open oof file at this time", err, false)
       } else {
         defer f.Close()
       }
-
       ms := &discordgo.MessageSend{
-        Embed: &discordgo.MessageEmbed{
-          Image: &discordgo.MessageEmbedImage{
-            URL: "https://discordemoji.com/assets/emoji/OOF.png",
+        Files: []*discordgo.File{
+          &discordgo.File{
+            Name:   "commands/pics/oof.png",
+            Reader: f,
           },
         },
       }
