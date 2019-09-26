@@ -1,60 +1,62 @@
-package main
+package commands
 
 import (
   "fmt"
+  "os"
 
   "github.com/bwmarrin/discordgo"
 )
 
-func commandHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
+func errCheck(msg string, err error) {
+  if err != nil {
+    fmt.Printf("%s: %+v", msg, err)
+  }
+}
+
+func CommandHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
   user := message.Author
+  botID := discord.State.User.ID
   if user.ID == botID || user.Bot {
     //Do nothing because the bot is talking
     return
   }
 
+  commandPrefix := "&"
   content := message.Content
 
   switch content {
-    case "!hello":
+
+    case commandPrefix + "hello":
       discord.ChannelMessageSend(message.ChannelID, "Hello!")
-    case "!gbfc":
-      discord.ChannelMessageSend(
-        message.ChannelID,
-        "Genji Butt Fan Club aka a bunch of try hard casuals")
-    case "!commands":
+
+    case commandPrefix + "commands":
       discord.ChannelMessageSend(message.ChannelID,
         "__**Command List**__\n" +
-        "`hello: GBSB returns a greeting`\n" +
-        "`gbfc: GBSB tells you about the GBFC Overwatch team`")
-    case "!oof":
-      f, err := os.Open("oof.png")
-      if err != nil {
-        return nil, err
-      }
-      defer f.Close()
+        "`hello: Test Bot returns a greeting`\n" +
+        "`gbfc: Test Bot tells you about the GBFC Overwatch team`")
 
+    case commandPrefix + "oof":
+      f, err := os.Open("commands/pics/oof.png")
+      if err != nil {
+        errCheck("Something went wrong. Unable to open oof file at this time", err)
+      } else {
+        defer f.Close()
+      }
       ms := &discordgo.MessageSend{
-        Embed: &discordgo.MessageEmbed{
-          Image: &discordgo.MessageEmbedImage{
-            URL: "attachment://" + fileName,
-          },
-        },
         Files: []*discordgo.File{
           &discordgo.File{
-            Name:   fileName,
+            Name:   "commands/pics/oof.png",
             Reader: f,
           },
         },
       }
+      discord.ChannelMessageSendComplex(message.ChannelID, ms)
 
-      s.ChannelMessageSendComplex(channelID, ms)
-    default: { // Only reply if the message was a command
-      if (string(content[0]) == "!") {
-        discord.ChannelMessageSend(message.ChannelID, "Command not found. List of commands comming soon.")
-      }
+    default: {} // Do nothing
+
     }
-  }
 
   fmt.Printf("Message: %+v || From: %s\n\n", message.Message, message.Author)
 }
+
+func
