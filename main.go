@@ -64,7 +64,7 @@ func main() {
       fmt.Println("Error attempting to set my status")
     }
     servers := discord.State.Guilds
-    fmt.Printf("Test-Bot has started on %d servers", len(servers))
+    fmt.Printf("Test-Bot has started on %d servers\n", len(servers))
   })
 
   // Open a websocket connection to Discord
