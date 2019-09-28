@@ -56,8 +56,10 @@ func CommandHandler(discord *discordgo.Session, message *discordgo.MessageCreate
     discord.ChannelMessageSendComplex(message.ChannelID, ms)
   } else if s.HasPrefix(content, commandPrefix + "rps") {
     rpsHandler(discord, message)
-  } else if s.HasPrefix(content, commandPrefix + "test") {
-    rpsMessageOpponent(discord, message.Mentions[0], message.Author.Username)
+  } else if s.HasPrefix(content, commandPrefix + "testme") {
+    rpsMessageChallenger(discord, message.Author, message.Mentions[0].Username)
+  } else if s.HasPrefix(content, commandPrefix + "testu") {
+    rpsMessageOpponent(discord, message.Author, message.Mentions[0].Username)
   }
 
   fmt.Printf("Message: %+v || From: %s\n\n", message.Message, message.Author)
@@ -70,30 +72,33 @@ func rpsHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
     return
   }
 
-  // if message.MentionEveryone {
-  //   discord.ChannelMessageSend(message.ChannelID,
-  //     "You may not challenge everyone to a game of rock, paper, scissors")
-  //   return
-  // } else if len(message.MentionRoles) > 0 {
-  //   discord.ChannelMessageSend(message.ChannelID,
-  //     "You may not challenge a role to a game of rock, paper, scissors")
-  //   return
-  // } else if len(message.Mentions) > 1 {
-  //   discord.ChannelMessageSend(message.ChannelID,
-  //     "You can only challenge one person at a time to rock, paper, scissors")
-  //   return
-  // } else if len(message.Mentions) == 0 {
-  //   discord.ChannelMessageSend(message.ChannelID,
-  //     "You must select at least one opponent for rock, paper, scissors")
-  //   return
-  // }
+  if message.MentionEveryone {
+    discord.ChannelMessageSend(message.ChannelID,
+      "You may not challenge everyone to a game of rock, paper, scissors")
+    return
+  } else if len(message.MentionRoles) > 0 {
+    discord.ChannelMessageSend(message.ChannelID,
+      "You may not challenge a role to a game of rock, paper, scissors")
+    return
+  } else if len(message.Mentions) > 1 {
+    discord.ChannelMessageSend(message.ChannelID,
+      "You can only challenge one person at a time to rock, paper, scissors")
+    return
+  } else if len(message.Mentions) == 0 {
+    discord.ChannelMessageSend(message.ChannelID,
+      "You must select at least one opponent for rock, paper, scissors")
+    return
+  }
 
 
-  // opponent := message.Mentions[0]
+  opponent := message.Mentions[0]
+
+  // timeout := make(chan bool)
 
 
 
-  // go rpsMessageOpponent(discord, opponent, message.Author)
+  go rpsMessageOpponent(discord, opponent, message.Author.Username)
+  go rpsMessageChallenger(discord, message.Author, opponent.Username)
 }
 
 func rpsMessageOpponent(discord *discordgo.Session, opponent *discordgo.User, challenger string) {
@@ -103,26 +108,40 @@ func rpsMessageOpponent(discord *discordgo.Session, opponent *discordgo.User, ch
     return
   }
 
-  rules := ("__**You have been challenged to a game of rock paper scissors!!!**__\n" +
+  rules := ("__**" + challenger + " has challenged you to a match of rock paper scissors!!!**__\n" +
            ":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
            ":fist::raised_hand::v:\t:fist::raised_hand::v:" +
            "\n\n" +
-           challenger + " has challenged you to a match of rock paper scissors.")
+           "Rules: You must react to this message with either the rock (:fist:)," +
+           " paper (:raised_hand:), or scissors (:v:) emoji.\n" +
+           "- Rock beats scissors\n" +
+           "- Scissors beats paper\n" +
+           "- Paper beats rock")
 
 
   discord.ChannelMessageSend(direct_message.ID, rules)
 
 }
 
-// func testDirect(discord *discordgo.Session, message *discordgo.MessageCreate) {
-//   opponent := message.Mentions[0]
-//   direct_message, err := discord.UserChannelCreate(opponent.ID)
+func rpsMessageChallenger(discord *discordgo.Session, challenger *discordgo.User, opponent string) {
+  direct_message, err := discord.UserChannelCreate(challenger.ID)
+  if err != nil {
+    errCheck("Unable to create direct message with the opponent", err)
+    return
+  }
 
-//   if err != nil {
-//     fmt.Println("Error %v", err)
-//     return
-//   }
+  rules := ("__**You have challenged " + opponent + " to a game of rock paper scissors!!!**__\n" +
+           ":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
+           ":fist::raised_hand::v:\t:fist::raised_hand::v:" +
+           "\n\n" +
+           "Rules: You must react to this message with either the rock (:fist:)," +
+           " paper (:raised_hand:), or scissors (:v:) emoji.\n" +
+           "- Rock beats scissors\n" +
+           "- Scissors beats paper\n" +
+           "- Paper beats rock")
 
-//   discord.ChannelMessageSend(direct_message.ID, "Test")
 
-// }
+
+  discord.ChannelMessageSend(direct_message.ID, rules)
+
+}
