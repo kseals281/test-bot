@@ -4,16 +4,10 @@ import (
   "fmt"
   "os"
   s "strings"
-  "sync"
+  // "sync"
 
   "github.com/bwmarrin/discordgo"
 )
-
-type rpsDirectMessagePackage struct {
-  dm        *Channel
-  user      discordgo.User
-  choice    discordgo.Emoji
-}
 
 func errCheck(msg string, err error) {
   if err != nil {
@@ -58,10 +52,6 @@ func CommandHandler(discord *discordgo.Session, message *discordgo.MessageCreate
     discord.ChannelMessageSendComplex(message.ChannelID, ms)
   } else if s.HasPrefix(content, commandPrefix + "rps") {
     rpsHandler(discord, message)
-  } else if s.HasPrefix(content, commandPrefix + "testme") {
-    // challengerDM := rpsMessageChallenger(discord, message.Author, message.Mentions[0].Username)
-  } else if s.HasPrefix(content, commandPrefix + "testu") {
-    // opponentDM := rpsMessageOpponent(discord, message.Author, message.Mentions[0].Username)
   }
 
   fmt.Printf("Message: %+v || From: %s\n\n", message.Message, message.Author)
@@ -91,61 +81,53 @@ func rpsHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
       "You must select at least one opponent for rock, paper, scissors")
     return
   }
+  // TODO: Add check for user challenging themselves
 
+  dmChannels := make(chan *discordgo.Channel)
+  // TODO: Add timeout for player choices
 
-  opponent := message.Mentions[0]
-  directMessage := make(chan rpsDirectMessagePackage)
-  // timeout := make(chan bool)
+  go rpsContactPlayers(discord, message, dmChannels)
 
-
-  go rpsMessageOpponent(discord, opponent, message.Author.Username)
-  go rpsMessageChallenger(discord, message.Author, opponent.Username)
+  for i := 0; i < 2; i++ {
+    ch := <- dmChannels
+    fmt.Println(ch.Name)
+  }
 }
 
-func rpsMessageOpponent(discord *discordgo.Session, opponent *discordgo.User, challenger string) {
-  direct_message, err := discord.UserChannelCreate(opponent.ID)
+func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCreate, dmChannels chan *discordgo.Channel) {
+  player_2 := message.Mentions[0]
+  player_1 := message.Author
+
+  dmP1, err := discord.UserChannelCreate(player_1.ID)
+  if err != nil {
+    errCheck("Unable to create direct message with the challenger", err)
+    return
+  }
+  dmP1.Name = player_1.Username + "1"
+
+  dmP2, err := discord.UserChannelCreate(player_2.ID)
   if err != nil {
     errCheck("Unable to create direct message with the opponent", err)
     return
   }
+  dmP2.Name = player_2.Username + "2"
 
-  rules := ("__**" + challenger + " has challenged you to a match of rock paper scissors!!!**__\n" +
-           ":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
-           ":fist::raised_hand::v:\t:fist::raised_hand::v:" +
-           "\n\n" +
-           "Rules: You must react to this message with either the rock (:fist:)," +
-           " paper (:raised_hand:), or scissors (:v:) emoji.\n" +
-           "- Rock beats scissors\n" +
-           "- Scissors beats paper\n" +
-           "- Paper beats rock")
+  p1Message := "__**You have challenged " + player_2.Username + " to a game of rock paper scissors!!!**__\n"
+  p2Message := "__**" + player_1.Username + " has challenged you to a match of rock paper scissors!!!**__\n"
 
-  discord.ChannelMessageSend(direct_message.ID, rules)
+  commonMessage := (":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
+              ":fist::raised_hand::v:\t:fist::raised_hand::v:" +
+              "\n\n" +
+              "Rules: You must react to this message with either the rock (:fist:)," +
+              " paper (:raised_hand:), or scissors (:v:) emoji.\n" +
+              "- Rock beats scissors\n" +
+              "- Scissors beats paper\n" +
+              "- Paper beats rock")
 
-  opponentPackage := rpsDirectMessagePackage(dm: direct_message, user: opponent)
-}
+  discord.ChannelMessageSend(dmP1.ID, (p1Message + commonMessage))
+  discord.ChannelMessageSend(dmP2.ID, (p2Message + commonMessage))
 
-func rpsMessageChallenger(discord *discordgo.Session, challenger *discordgo.User, opponent string) {
-  direct_message, err := discord.UserChannelCreate(challenger.ID)
-  if err != nil {
-    errCheck("Unable to create direct message with the opponent", err)
-    return
-  }
-
-  rules := ("__**You have challenged " + opponent + " to a game of rock paper scissors!!!**__\n" +
-           ":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
-           ":fist::raised_hand::v:\t:fist::raised_hand::v:" +
-           "\n\n" +
-           "Rules: You must react to this message with either the rock (:fist:)," +
-           " paper (:raised_hand:), or scissors (:v:) emoji.\n" +
-           "- Rock beats scissors\n" +
-           "- Scissors beats paper\n" +
-           "- Paper beats rock")
-
-  discord.ChannelMessageSend(direct_message.ID, rules)
-
-  challengerPackage := rpsDirectMessagePackage(dm: direct_message, user: challenger)
-}
-
-func rpsGetReaction(discord *discordgo.Session, message *discordgo.MessageCreate, dm discordgo. {
+  dmChannels <- dmP1
+  dmChannels <- dmP2
 
 }
