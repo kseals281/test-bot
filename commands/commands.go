@@ -131,3 +131,7 @@ func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCre
   dmChannels <- dmP2
 
 }
+
+// func rpsGetReaction(discord *discordgo.Session, message *discordgo.MessageCreate, dm discordgo. {
+
+// }
