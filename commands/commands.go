@@ -4,14 +4,16 @@ import (
   "fmt"
   "os"
   s "strings"
+  "sync"
 
   "github.com/bwmarrin/discordgo"
 )
 
-// type rpsResponse struct {
-//   choice discordgo.Emoji
-//   timeout bool
-// }
+type rpsDirectMessagePackage struct {
+  dm        *Channel
+  user      discordgo.User
+  choice    discordgo.Emoji
+}
 
 func errCheck(msg string, err error) {
   if err != nil {
@@ -57,9 +59,9 @@ func CommandHandler(discord *discordgo.Session, message *discordgo.MessageCreate
   } else if s.HasPrefix(content, commandPrefix + "rps") {
     rpsHandler(discord, message)
   } else if s.HasPrefix(content, commandPrefix + "testme") {
-    rpsMessageChallenger(discord, message.Author, message.Mentions[0].Username)
+    // challengerDM := rpsMessageChallenger(discord, message.Author, message.Mentions[0].Username)
   } else if s.HasPrefix(content, commandPrefix + "testu") {
-    rpsMessageOpponent(discord, message.Author, message.Mentions[0].Username)
+    // opponentDM := rpsMessageOpponent(discord, message.Author, message.Mentions[0].Username)
   }
 
   fmt.Printf("Message: %+v || From: %s\n\n", message.Message, message.Author)
@@ -92,9 +94,8 @@ func rpsHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 
 
   opponent := message.Mentions[0]
-
+  directMessage := make(chan rpsDirectMessagePackage)
   // timeout := make(chan bool)
-
 
 
   go rpsMessageOpponent(discord, opponent, message.Author.Username)
@@ -118,9 +119,9 @@ func rpsMessageOpponent(discord *discordgo.Session, opponent *discordgo.User, ch
            "- Scissors beats paper\n" +
            "- Paper beats rock")
 
-
   discord.ChannelMessageSend(direct_message.ID, rules)
 
+  opponentPackage := rpsDirectMessagePackage(dm: direct_message, user: opponent)
 }
 
 func rpsMessageChallenger(discord *discordgo.Session, challenger *discordgo.User, opponent string) {
@@ -140,8 +141,11 @@ func rpsMessageChallenger(discord *discordgo.Session, challenger *discordgo.User
            "- Scissors beats paper\n" +
            "- Paper beats rock")
 
-
-
   discord.ChannelMessageSend(direct_message.ID, rules)
+
+  challengerPackage := rpsDirectMessagePackage(dm: direct_message, user: challenger)
+}
+
+func rpsGetReaction(discord *discordgo.Session, message *discordgo.MessageCreate, dm discordgo. {
 
 }
