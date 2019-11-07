@@ -14,36 +14,34 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		return
 	}
 
+	var err error
+	var msg string
+
 	if message.MentionEveryone {
-		_, err := discord.ChannelMessageSend(message.ChannelID,
+		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You may not challenge everyone to a game of rock, paper, scissors")
-		if err != nil {
-			errCheck("Unable to sent cannot challenge everyone message", err)
-		}
-		return
+		msg = "Unable to sent cannot challenge everyone message"
 	} else if len(message.MentionRoles) > 0 {
-		_, err := discord.ChannelMessageSend(message.ChannelID,
+		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You may not challenge a role to a game of rock, paper, scissors")
-		if err != nil {
-			errCheck("Error sending role challenge denial", err)
-		}
-		return
+		msg = "Error sending role challenge denial"
 	} else if len(message.Mentions) > 1 {
-		_, err := discord.ChannelMessageSend(message.ChannelID,
+		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You can only challenge one person at a time to rock, paper, scissors")
-		errCheck("Unable to send only one opponent message", err)
-		return
+		msg = "Unable to send only one opponent message"
 	} else if len(message.Mentions) == 0 {
-		_, err := discord.ChannelMessageSend(message.ChannelID,
+		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You must select at least one opponent for rock, paper, scissors")
-		errCheck("Unable to send at least one opponent error", err)
-		return
+		msg = "Unable to send at least one opponent error"
 	} else if message.Mentions[0].ID == message.Author.ID {
-		_, err := discord.ChannelMessageSend(message.ChannelID,
+		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You cannot challenge yourself to a game of rock paper scissors")
-		if err != nil {
-			errCheck("Unable to send no challenging yourself message", err)
-		}
+		msg = "Unable to send no challenging yourself message"
+	}
+
+	if err != nil {
+		errCheck(msg, err)
+		return
 	}
 	// TODO: Add timeout for player choices
 
@@ -59,8 +57,12 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	go rpsWaitForReaction(&wg, discord, p2, reactions)
 
 	wg.Wait()
-	fmt.Println(<-reactions)
-	fmt.Println(<-reactions)
+	fmt.Println("Finished waiting")
+	var roshambo []*discordgo.MessageReaction
+	for i := 0; i < 2; i++ {
+		roshambo[i] = <-reactions
+	}
+	fmt.Println(roshambo)
 }
 
 func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCreate) (*discordgo.Message, *discordgo.Message) {
