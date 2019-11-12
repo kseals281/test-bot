@@ -3,9 +3,13 @@ package commands
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
-	"sync"
 	"time"
 )
+
+type roshambo struct {
+	choice *discordgo.MessageReaction
+	user   *discordgo.User
+}
 
 func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	// Webhook messages do not contain a full author (i.e. non-user author) and
@@ -43,6 +47,10 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		errCheck(msg, err)
 		return
 	}
+	if len(msg) > 0 {
+		return
+	}
+
 	// TODO: Add timeout for player choices
 
 	p1, p2 := rpsContactPlayers(discord, message)
@@ -50,19 +58,17 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		errCheck("Error Contacting players", nil)
 	}
 
-	var wg sync.WaitGroup
-	reactions := make(chan *discordgo.MessageReaction)
-	wg.Add(2)
-	go rpsWaitForReaction(&wg, discord, p1, reactions)
-	go rpsWaitForReaction(&wg, discord, p2, reactions)
+	reactions := make(chan *roshambo)
+	go rpsWaitForReaction(discord, p1, reactions)
+	go rpsWaitForReaction(discord, p2, reactions)
 
-	wg.Wait()
-	fmt.Println("Finished waiting")
-	var roshambo []*discordgo.MessageReaction
+	var rpsChoices [2]*roshambo
 	for i := 0; i < 2; i++ {
-		roshambo[i] = <-reactions
+		rpsChoices[i] = <-reactions
 	}
-	fmt.Println(roshambo)
+	close(reactions)
+
+	rpsWinner(discord, message, rpsChoices)
 }
 
 func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCreate) (*discordgo.Message, *discordgo.Message) {
@@ -108,12 +114,14 @@ func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCre
 	return p1, p2
 }
 
-func rpsWaitForReaction(wg *sync.WaitGroup, s *discordgo.Session, message *discordgo.Message, reactions chan *discordgo.MessageReaction) {
-	// TODO: Do this in a more efficient manner
+func rpsWaitForReaction(s *discordgo.Session, message *discordgo.Message, reactions chan *roshambo) {
+	// TODO: Rewrite entire function using a test driven approach
+	// TODO: Do this using Emoji.APIName
 	if len(message.Reactions) > 0 {
 		_ = s.MessageReactionsRemoveAll(message.ChannelID, message.ID)
 	}
 	limiter := time.Tick(1000 * time.Millisecond)
+	// For some reason the ✌️ emoji is not recognized unless backspace is pressed once
 	choices := [3]string{"✊", "✋", "✌"}
 	for i := 0; i < 500; i++ {
 		message, _ = s.ChannelMessage(message.ChannelID, message.ID) // Refresh message
@@ -126,15 +134,68 @@ func rpsWaitForReaction(wg *sync.WaitGroup, s *discordgo.Session, message *disco
 			users, err := s.MessageReactions(message.ChannelID, message.ID, emoji, 1)
 			errCheck("Error getting number of users who reacted", err)
 			if len(users) > 0 {
-				fmt.Println("GOT A REACTION")
 				mr := messageReaction(message.Reactions[0], message)
-				reactions <- mr
-				wg.Done()
+				r := new(roshambo)
+				r.user = users[0]
+				r.choice = mr
+				reactions <- r
 				return
 			}
 		}
 		<-limiter
 	}
+}
+
+func rpsResults(rpsChoices [2]*roshambo) string {
+	if rpsChoices[0].choice.Emoji.Name == "✊" {
+		if rpsChoices[1].choice.Emoji.Name == "✌" {
+			return rpsChoices[0].user.ID
+		} else if rpsChoices[1].choice.Emoji.Name == "✋" {
+			return rpsChoices[1].user.ID
+		}
+	} else if rpsChoices[0].choice.Emoji.Name == "✋" {
+		if rpsChoices[1].choice.Emoji.Name == "✊" {
+			return rpsChoices[0].user.ID
+		} else if rpsChoices[1].choice.Emoji.Name == "✌" {
+			return rpsChoices[1].user.ID
+		}
+	} else if rpsChoices[0].choice.Emoji.Name == "✌" {
+		if rpsChoices[1].choice.Emoji.Name == "✋" {
+			return rpsChoices[0].user.ID
+		} else if rpsChoices[1].choice.Emoji.Name == "✊" {
+			return rpsChoices[1].user.ID
+		}
+	}
+	return ""
+}
+
+func rpsWinner(discord *discordgo.Session, message *discordgo.MessageCreate, rpsChoices [2]*roshambo) {
+	winnerID := rpsResults(rpsChoices)
+	var players []*discordgo.User
+	for _, choice := range rpsChoices {
+		players = append(players, choice.user)
+	}
+
+	var winner, loser *discordgo.User
+	if winnerID == players[0].ID {
+		winner = players[0]
+		loser = players[1]
+	} else {
+		winner = players[1]
+		loser = players[0]
+	}
+
+	var r string
+	if winnerID == "" {
+		r = fmt.Sprintf("> There is no winner between %s and %s\n", players[0].Username, players[1].Username)
+	} else {
+		r = fmt.Sprintf("> **%s has won the rock paper scissors match against %s**\n", winner.Username, loser.Username)
+	}
+	p := fmt.Sprintf("> %s chose %s\n", rpsChoices[0].user.Username, rpsChoices[0].choice.Emoji.MessageFormat())
+	s := fmt.Sprintf("> %s chose %s\n", rpsChoices[1].user.Username, rpsChoices[1].choice.Emoji.MessageFormat())
+
+	_, err := discord.ChannelMessageSend(message.ChannelID, r+p+s)
+	errCheck("Failed sending winner of rps game to chat", err)
 }
 
 func messageReaction(reaction *discordgo.MessageReactions, message *discordgo.Message) *discordgo.MessageReaction {
