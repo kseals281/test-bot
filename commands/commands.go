@@ -59,7 +59,7 @@ func CommandHandler(discord *discordgo.Session, message *discordgo.MessageCreate
 		}
 
 	case s.HasPrefix(content, commandPrefix+"rps"):
-		RPSHandler(discord, message)
+		go RPSHandler(discord, message)
 	}
 
 	fmt.Printf("Message: %+v || From: %s\n\n", message.Message, message.Author)

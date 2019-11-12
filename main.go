@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"test-bot/commands"
 
@@ -20,6 +22,7 @@ var Session, _ = discordgo.New()
 
 // Read in all options from environment variables and command line arguments.
 func init() {
+	rand.Seed(time.Now().Unix())
 
 	// Discord Authentication Token
 	Session.Token = os.Getenv("DISCORD_TEST_BOT")

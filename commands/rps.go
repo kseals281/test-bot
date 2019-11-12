@@ -3,12 +3,40 @@ package commands
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"math/rand"
 	"time"
 )
 
 type roshambo struct {
 	choice *discordgo.MessageReaction
 	user   *discordgo.User
+}
+
+var Rock = discordgo.Emoji{
+	ID:            "",
+	Name:          "✊",
+	Roles:         nil,
+	Managed:       false,
+	RequireColons: false,
+	Animated:      false,
+}
+
+var Paper = discordgo.Emoji{
+	ID:            "",
+	Name:          "✋",
+	Roles:         nil,
+	Managed:       false,
+	RequireColons: false,
+	Animated:      false,
+}
+
+var Scissor = discordgo.Emoji{
+	ID:            "",
+	Name:          "✌️",
+	Roles:         nil,
+	Managed:       false,
+	RequireColons: false,
+	Animated:      false,
 }
 
 func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
@@ -33,14 +61,12 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		_, err = discord.ChannelMessageSend(message.ChannelID,
 			"You can only challenge one person at a time to rock, paper, scissors")
 		msg = "Unable to send only one opponent message"
-	} else if len(message.Mentions) == 0 {
-		_, err = discord.ChannelMessageSend(message.ChannelID,
-			"You must select at least one opponent for rock, paper, scissors")
-		msg = "Unable to send at least one opponent error"
-	} else if message.Mentions[0].ID == message.Author.ID {
-		_, err = discord.ChannelMessageSend(message.ChannelID,
-			"You cannot challenge yourself to a game of rock paper scissors")
-		msg = "Unable to send no challenging yourself message"
+	} else if len(message.Mentions) != 0 {
+		if message.Mentions[0].ID == message.Author.ID {
+			_, err = discord.ChannelMessageSend(message.ChannelID,
+				"You cannot challenge yourself to a game of rock paper scissors")
+			msg = "Unable to send no challenging yourself message"
+		}
 	}
 
 	if err != nil {
@@ -48,6 +74,11 @@ func RPSHandler(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		return
 	}
 	if len(msg) > 0 {
+		return
+	}
+
+	if len(message.Mentions) == 0 {
+		rpsAI(discord, message)
 		return
 	}
 
@@ -95,8 +126,8 @@ func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCre
 	commonMessage := ":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t" +
 		":fist::raised_hand::v:\t:fist::raised_hand::v:" +
 		"\n\n" +
-		"Rules: You must react to this message with either the rock (:fist:)," +
-		" paper (:raised_hand:), or scissors (:v:) emoji.\n" +
+		"Rules: You must react to this message with either the rock (:fist: | fist)," +
+		" paper (:raised_hand: | raised_hand), or scissors (:v: | v) emoji.\n" +
 		"- Rock beats scissors\n" +
 		"- Scissors beats paper\n" +
 		"- Paper beats rock"
@@ -116,13 +147,11 @@ func rpsContactPlayers(discord *discordgo.Session, message *discordgo.MessageCre
 
 func rpsWaitForReaction(s *discordgo.Session, message *discordgo.Message, reactions chan *roshambo) {
 	// TODO: Rewrite entire function using a test driven approach
-	// TODO: Do this using Emoji.APIName
 	if len(message.Reactions) > 0 {
 		_ = s.MessageReactionsRemoveAll(message.ChannelID, message.ID)
 	}
-	limiter := time.Tick(1000 * time.Millisecond)
-	// For some reason the ✌️ emoji is not recognized unless backspace is pressed once
-	choices := [3]string{"✊", "✋", "✌"}
+	limiter := time.Tick(1000 * time.Second)
+	choices := [3]string{"✊", "✋", "✌️"}
 	for i := 0; i < 500; i++ {
 		message, _ = s.ChannelMessage(message.ChannelID, message.ID) // Refresh message
 		if len(message.Reactions) == 0 {
@@ -147,20 +176,20 @@ func rpsWaitForReaction(s *discordgo.Session, message *discordgo.Message, reacti
 }
 
 func rpsResults(rpsChoices [2]*roshambo) string {
-	if rpsChoices[0].choice.Emoji.Name == "✊" {
-		if rpsChoices[1].choice.Emoji.Name == "✌" {
+	if rpsChoices[0].choice.Emoji.APIName() == Rock.APIName() {
+		if rpsChoices[1].choice.Emoji.Name == Scissor.APIName() {
 			return rpsChoices[0].user.ID
-		} else if rpsChoices[1].choice.Emoji.Name == "✋" {
+		} else if rpsChoices[1].choice.Emoji.Name == Paper.APIName() {
 			return rpsChoices[1].user.ID
 		}
-	} else if rpsChoices[0].choice.Emoji.Name == "✋" {
-		if rpsChoices[1].choice.Emoji.Name == "✊" {
+	} else if rpsChoices[0].choice.Emoji.Name == Paper.APIName() {
+		if rpsChoices[1].choice.Emoji.Name == Rock.APIName() {
 			return rpsChoices[0].user.ID
-		} else if rpsChoices[1].choice.Emoji.Name == "✌" {
+		} else if rpsChoices[1].choice.Emoji.Name == "✌️" {
 			return rpsChoices[1].user.ID
 		}
-	} else if rpsChoices[0].choice.Emoji.Name == "✌" {
-		if rpsChoices[1].choice.Emoji.Name == "✋" {
+	} else if rpsChoices[0].choice.Emoji.Name == Scissor.APIName() {
+		if rpsChoices[1].choice.Emoji.Name == Paper.APIName() {
 			return rpsChoices[0].user.ID
 		} else if rpsChoices[1].choice.Emoji.Name == "✊" {
 			return rpsChoices[1].user.ID
@@ -198,8 +227,58 @@ func rpsWinner(discord *discordgo.Session, message *discordgo.MessageCreate, rps
 	errCheck("Failed sending winner of rps game to chat", err)
 }
 
+func rpsAI(discord *discordgo.Session, message *discordgo.MessageCreate) {
+	nick := nickname(discord, message.GuildID, message.Author.ID)
+	fightMessage := fmt.Sprintf("__**~ %s VS test-bot ~**__\n"+
+		":fist::raised_hand::v:\t:fist::raised_hand::v:\t:fist::raised_hand::v:\t"+
+		":fist::raised_hand::v:\t:fist::raised_hand::v:"+
+		"\n\n"+
+		"Rules: You must react to this message with either the rock (:fist: | fist),"+
+		" paper (:raised_hand: | raised_hand), or scissors (:v: | v) emoji.\n"+
+		"- Rock beats scissors\n"+
+		"- Scissors beats paper\n"+
+		"- Paper beats rock", nick)
+	m, err := discord.ChannelMessageSend(message.ChannelID, fightMessage)
+	errCheck("Unable to send message when playing against the AI", err)
+
+	playerChoice := make(chan *roshambo)
+	go rpsWaitForReaction(discord, m, playerChoice)
+
+	choice := aiChoice(rand.Int())
+
+	var rpsChoices [2]*roshambo
+	rpsChoices[0] = &roshambo{choice: choice, user: discord.State.User}
+	rpsChoices[1] = <-playerChoice
+	close(playerChoice)
+
+	rpsWinner(discord, message, rpsChoices)
+}
+
 func messageReaction(reaction *discordgo.MessageReactions, message *discordgo.Message) *discordgo.MessageReaction {
 	mr := discordgo.MessageReaction{UserID: message.Author.ID, MessageID: message.ID, Emoji: *reaction.Emoji,
 		ChannelID: message.ChannelID, GuildID: message.GuildID}
 	return &mr
+}
+
+func nickname(s *discordgo.Session, gID, uID string) string {
+	m, err := s.GuildMember(gID, uID)
+	errCheck("Unable to get member's nickname", err)
+	return m.Nick
+}
+
+func aiChoice(i int) *discordgo.MessageReaction {
+	i %= 3
+	j := ""
+
+	if i == 0 {
+		j = "✊"
+	} else if i == 1 {
+		j = "✋"
+	} else {
+		j = "✌️"
+	}
+
+	reaction := discordgo.MessageReaction{Emoji: discordgo.Emoji{Name: j}}
+
+	return &reaction
 }
